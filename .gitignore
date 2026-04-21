@@ -1,8 +1,40 @@
-### Example user template template
-### Example user template
-
 # IntelliJ project files
 .idea
 *.iml
 out
 gen
+
+# Environment variables file
+.env
+
+# Log files
+logs/
+*.log
+
+# Build files
+build/
+dist/
+
+# Temporary files
+tmp/
+temp/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Node modules (if using Node.js)
+node_modules/
+
+# Python virtual environment (if using Python)
+venv/
+
+# Jetbrains IDE specific files
+*.iws
+*.ipr
+.idea/
+
+# Scripts
+*.sh
+scripts/
+*.ps1
