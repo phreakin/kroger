@@ -162,6 +162,62 @@ class Database {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ");
 
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS shopping_cart (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                user_id BIGINT UNSIGNED NULL,
+                session_id VARCHAR(128) NULL,
+                store_id BIGINT UNSIGNED NOT NULL,
+                kroger_cart_id VARCHAR(128) NULL,
+                subtotal DECIMAL(10,2) NULL,
+                total DECIMAL(10,2) NULL,
+                item_count INT UNSIGNED NOT NULL DEFAULT 0,
+                fulfillment_mode ENUM('instore','delivery','pickup','shiptohome') DEFAULT 'instore',
+                last_synced_at DATETIME NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_cart_user_store (user_id, store_id),
+                UNIQUE KEY uq_cart_session_store (session_id, store_id),
+                KEY idx_cart_store (store_id),
+                KEY idx_cart_user (user_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS shopping_cart_items (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                cart_id BIGINT UNSIGNED NOT NULL,
+                product_id BIGINT UNSIGNED NULL,
+                kroger_product_id VARCHAR(64) NULL,
+                upc VARCHAR(64) NOT NULL,
+                quantity INT UNSIGNED NOT NULL DEFAULT 1,
+                regular_price DECIMAL(10,2) NULL,
+                sale_price DECIMAL(10,2) NULL,
+                national_price DECIMAL(10,2) NULL,
+                promo_description VARCHAR(255) NULL,
+                raw_json LONGTEXT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_cart_item (cart_id, upc),
+                KEY idx_cart_items_cart (cart_id),
+                KEY idx_cart_items_product (product_id),
+                KEY idx_cart_items_upc (upc)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS shopping_cart_sync_log (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                cart_id BIGINT UNSIGNED NOT NULL,
+                action ENUM('add','update','remove','sync','merge') NOT NULL,
+                request_json LONGTEXT NULL,
+                response_json LONGTEXT NULL,
+                http_status INT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                KEY idx_cart_sync_log_cart (cart_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+
         self::ensureColumn($db, 'products', 'upc', "ALTER TABLE products ADD COLUMN upc VARCHAR(64) NULL AFTER kroger_product_id");
         self::ensureColumn($db, 'products', 'image_url', "ALTER TABLE products ADD COLUMN image_url VARCHAR(1024) NULL AFTER size");
         self::ensureColumn($db, 'products', 'aisle_locations', "ALTER TABLE products ADD COLUMN aisle_locations TEXT NULL AFTER image_url");

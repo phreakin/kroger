@@ -3,7 +3,9 @@ require __DIR__ . '/../src/Core/Database.php';
 require __DIR__ . '/../src/Core/KrogerClient.php';
 require __DIR__ . '/../src/Repositories/DatabaseApiRepository.php';
 require __DIR__ . '/../src/Repositories/GroceryListRepository.php';
+require __DIR__ . '/../src/Repositories/ShoppingCartRepository.php';
 require __DIR__ . '/../src/Services/GroceryService.php';
+require __DIR__ . '/../src/Services/ShoppingCartService.php';
 
 $envPath = dirname(__DIR__) . '/.env';
 if (is_file($envPath)) {
@@ -21,6 +23,8 @@ $kroger = new KrogerClient($config['kroger']);
 $service = new GroceryService($db, $kroger);
 $repo = new GroceryListRepository($db);
 $dataRepo = new DatabaseApiRepository($db);
+$shoppingCartRepo = new ShoppingCartRepository($db);
+$shoppingCartService = new ShoppingCartService($shoppingCartRepo, $kroger);
 $userId = 1;
 
 $action = $_GET['action'] ?? null;
@@ -267,6 +271,140 @@ try {
                 'defaultLocationId' => $config['kroger']['default_location_id'],
                 'defaultStoreId' => $config['kroger']['default_store_id'],
                 'defaultZipCode' => $config['kroger']['default_zip_code'],
+            ]);
+            break;
+
+        case 'get_or_create_shopping_cart':
+            $payload = json_decode(file_get_contents('php://input'), true) ?: [];
+            $storeId = (int) ($payload['store_id'] ?? ($_GET['store_id'] ?? 0));
+            if ($storeId <= 0) {
+                throw new RuntimeException('store_id is required.');
+            }
+
+            $sessionId = trim((string) ($payload['session_id'] ?? ($_GET['session_id'] ?? '')));
+            $fulfillmentMode = (string) ($payload['fulfillment_mode'] ?? ($_GET['fulfillment_mode'] ?? 'instore'));
+            $useUserId = isset($payload['user_id']) || isset($_GET['user_id'])
+                ? (int) ($payload['user_id'] ?? $_GET['user_id'])
+                : $userId;
+
+            echo json_encode([
+                'ok' => true,
+                ...$shoppingCartService->getOrCreateCart(
+                    $storeId,
+                    $useUserId > 0 ? $useUserId : null,
+                    $sessionId !== '' ? $sessionId : null,
+                    $fulfillmentMode
+                ),
+            ]);
+            break;
+
+        case 'get_shopping_cart':
+            $cartId = (int) ($_GET['cart_id'] ?? 0);
+            if ($cartId <= 0) {
+                throw new RuntimeException('cart_id is required.');
+            }
+            echo json_encode([
+                'ok' => true,
+                ...$shoppingCartService->getCart($cartId),
+            ]);
+            break;
+
+        case 'add_shopping_cart_item':
+            $payload = json_decode(file_get_contents('php://input'), true) ?: [];
+            $cartId = (int) ($payload['cart_id'] ?? 0);
+            if ($cartId <= 0) {
+                throw new RuntimeException('cart_id is required.');
+            }
+            echo json_encode([
+                'ok' => true,
+                ...$shoppingCartService->addItem(
+                    $cartId,
+                    [
+                        'product_id' => $payload['product_id'] ?? null,
+                        'kroger_product_id' => $payload['kroger_product_id'] ?? null,
+                        'upc' => $payload['upc'] ?? '',
+                        'quantity' => $payload['quantity'] ?? 1,
+                        'regular_price' => $payload['regular_price'] ?? null,
+                        'sale_price' => $payload['sale_price'] ?? null,
+                        'national_price' => $payload['national_price'] ?? null,
+                        'promo_description' => $payload['promo_description'] ?? null,
+                        'raw_json' => $payload['raw_json'] ?? null,
+                    ],
+                    isset($payload['kroger_access_token']) ? (string) $payload['kroger_access_token'] : null
+                ),
+            ]);
+            break;
+
+        case 'update_shopping_cart_item':
+            $payload = json_decode(file_get_contents('php://input'), true) ?: [];
+            $cartId = (int) ($payload['cart_id'] ?? 0);
+            $upc = trim((string) ($payload['upc'] ?? ''));
+            if ($cartId <= 0 || $upc === '') {
+                throw new RuntimeException('cart_id and upc are required.');
+            }
+
+            echo json_encode([
+                'ok' => true,
+                ...$shoppingCartService->updateItemQuantity(
+                    $cartId,
+                    $upc,
+                    isset($payload['quantity']) ? (int) $payload['quantity'] : 1,
+                    isset($payload['kroger_access_token']) ? (string) $payload['kroger_access_token'] : null
+                ),
+            ]);
+            break;
+
+        case 'remove_shopping_cart_item':
+            $payload = json_decode(file_get_contents('php://input'), true) ?: [];
+            $cartId = (int) ($payload['cart_id'] ?? 0);
+            $upc = trim((string) ($payload['upc'] ?? ''));
+            if ($cartId <= 0 || $upc === '') {
+                throw new RuntimeException('cart_id and upc are required.');
+            }
+
+            echo json_encode([
+                'ok' => true,
+                ...$shoppingCartService->removeItem(
+                    $cartId,
+                    $upc,
+                    isset($payload['kroger_access_token']) ? (string) $payload['kroger_access_token'] : null
+                ),
+            ]);
+            break;
+
+        case 'sync_shopping_cart':
+            $payload = json_decode(file_get_contents('php://input'), true) ?: [];
+            $cartId = (int) ($payload['cart_id'] ?? 0);
+            if ($cartId <= 0) {
+                throw new RuntimeException('cart_id is required.');
+            }
+            echo json_encode([
+                'ok' => true,
+                ...$shoppingCartService->syncCart(
+                    $cartId,
+                    isset($payload['kroger_access_token']) ? (string) $payload['kroger_access_token'] : null
+                ),
+            ]);
+            break;
+
+        case 'merge_shopping_cart':
+            $payload = json_decode(file_get_contents('php://input'), true) ?: [];
+            $sessionId = trim((string) ($payload['session_id'] ?? ''));
+            $storeId = (int) ($payload['store_id'] ?? 0);
+            $targetUserId = isset($payload['user_id']) ? (int) $payload['user_id'] : $userId;
+            if ($sessionId === '' || $storeId <= 0 || $targetUserId <= 0) {
+                throw new RuntimeException('session_id, user_id, and store_id are required.');
+            }
+
+            echo json_encode([
+                'ok' => true,
+                ...$shoppingCartService->mergeSessionCart(
+                    $sessionId,
+                    $targetUserId,
+                    $storeId,
+                    isset($payload['kroger_access_token']) ? (string) $payload['kroger_access_token'] : null,
+                    isset($payload['fulfillment_mode']) ? (string) $payload['fulfillment_mode'] : 'instore'
+                ),
             ]);
             break;
 
