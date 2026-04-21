@@ -79,9 +79,17 @@ class DatabaseApiRepository {
                     address_line_1 = :address_line_1,
                     address_line_2 = :address_line_2,
                     city = :city,
+                    county = :county,
                     state_code = :state_code,
                     postal_code = :postal_code,
                     phone = :phone,
+                    store_number = :store_number,
+                    division_number = :division_number,
+                    latitude = :latitude,
+                    longitude = :longitude,
+                    timezone = :timezone,
+                    hours_json = :hours_json,
+                    raw_json = :raw_json,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = :id
             ");
@@ -92,9 +100,17 @@ class DatabaseApiRepository {
                 ':address_line_1' => $store['address_line_1'],
                 ':address_line_2' => $store['address_line_2'],
                 ':city' => $store['city'],
+                ':county' => $store['county'],
                 ':state_code' => $store['state_code'],
                 ':postal_code' => $store['postal_code'],
                 ':phone' => $store['phone'],
+                ':store_number' => $store['store_number'],
+                ':division_number' => $store['division_number'],
+                ':latitude' => $store['latitude'],
+                ':longitude' => $store['longitude'],
+                ':timezone' => $store['timezone'],
+                ':hours_json' => $store['hours_json'],
+                ':raw_json' => $store['raw_json'],
             ]);
             return (int) $row['id'];
         }
@@ -107,9 +123,17 @@ class DatabaseApiRepository {
                 address_line_1,
                 address_line_2,
                 city,
+                county,
                 state_code,
                 postal_code,
-                phone
+                phone,
+                store_number,
+                division_number,
+                latitude,
+                longitude,
+                timezone,
+                hours_json,
+                raw_json
             ) VALUES (
                 :kroger_location_id,
                 :name,
@@ -117,9 +141,17 @@ class DatabaseApiRepository {
                 :address_line_1,
                 :address_line_2,
                 :city,
+                :county,
                 :state_code,
                 :postal_code,
-                :phone
+                :phone,
+                :store_number,
+                :division_number,
+                :latitude,
+                :longitude,
+                :timezone,
+                :hours_json,
+                :raw_json
             )
         ");
         $stmt->execute([
@@ -129,9 +161,17 @@ class DatabaseApiRepository {
             ':address_line_1' => $store['address_line_1'],
             ':address_line_2' => $store['address_line_2'],
             ':city' => $store['city'],
+            ':county' => $store['county'],
             ':state_code' => $store['state_code'],
             ':postal_code' => $store['postal_code'],
             ':phone' => $store['phone'],
+            ':store_number' => $store['store_number'],
+            ':division_number' => $store['division_number'],
+            ':latitude' => $store['latitude'],
+            ':longitude' => $store['longitude'],
+            ':timezone' => $store['timezone'],
+            ':hours_json' => $store['hours_json'],
+            ':raw_json' => $store['raw_json'],
         ]);
 
         return (int) $this->db->lastInsertId();

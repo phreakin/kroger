@@ -57,7 +57,6 @@ $departments = [
     <aside class="sidebar">
         <div class="sidebar-logo">
             <img src="assets/img/kroger_logo.svg" alt="Kroger" class="brand-logo">
-            <span class="brand-wordmark">Kroger Cart</span>
         </div>
 
         <div class="sidebar-account-action">
@@ -100,13 +99,6 @@ $departments = [
             <div class="storefront-topbar">
                 <div class="storefront-brand-cluster">
                     <img src="assets/img/kroger_logo.svg" alt="Kroger" class="storefront-logo">
-                    <nav class="storefront-primary-nav" aria-label="Primary">
-                        <button class="storefront-link" data-scroll-target="search-panel">Shop</button>
-                        <button class="storefront-link" data-scroll-target="deals-panel">Save</button>
-                        <button class="storefront-link" data-scroll-target="cart-panel">Pickup & Delivery</button>
-                        <button class="storefront-link" data-scroll-target="account-panel">Services</button>
-                        <button class="storefront-link" data-scroll-target="usual-items-panel">Pharmacy & Health</button>
-                    </nav>
                 </div>
 
                 <div class="storefront-actions">
@@ -143,29 +135,15 @@ $departments = [
                 </div>
             </div>
 
-            <div class="storefront-category-dropdown" data-dropdown>
-                <button
-                    type="button"
-                    class="category-dropdown-trigger"
-                    data-dropdown-trigger
-                    aria-expanded="false"
-                    aria-controls="department-menu"
-                >
-                    <span class="category-dropdown-trigger-copy">
-                        <strong>Browse Departments</strong>
-                        <span>Show grocery, home, health, pet, and specialty departments</span>
-                    </span>
-                    <i data-feather="chevron-down"></i>
-                </button>
-
-                <div id="department-menu" class="storefront-categories" data-dropdown-menu hidden aria-label="Department shortcuts">
+            <div class="storefront-category-dropdown">
+                <select id="department-selector" class="input-dark" aria-label="Browse departments">
+                    <option value="">Select a department...</option>
                     <?php foreach ($departments as $department): ?>
-                        <button class="category-chip" data-scroll-target="<?= htmlspecialchars($department['target'], ENT_QUOTES, 'UTF-8') ?>">
-                            <span class="category-icon"><i data-feather="<?= htmlspecialchars($department['icon'], ENT_QUOTES, 'UTF-8') ?>"></i></span>
-                            <span><?= htmlspecialchars($department['label'], ENT_QUOTES, 'UTF-8') ?></span>
-                        </button>
+                        <option value="<?= htmlspecialchars($department['target'], ENT_QUOTES, 'UTF-8') ?>">
+                            <?= htmlspecialchars($department['label'], ENT_QUOTES, 'UTF-8') ?>
+                        </option>
                     <?php endforeach; ?>
-                </div>
+                </select>
             </div>
         </section>
 

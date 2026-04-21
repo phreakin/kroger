@@ -40,15 +40,30 @@ class GroceryService {
 
         return array_map(function (array $location): array {
             $address = $location['address'] ?? [];
+            $geolocation = $location['geolocation'] ?? [];
+            $hours = $location['hours'] ?? [];
+            
             return [
+                'kroger_location_id' => (string) ($location['locationId'] ?? ''),
                 'location_id' => (string) ($location['locationId'] ?? ''),
                 'store_number' => (string) ($location['storeNumber'] ?? ''),
+                'division_number' => (string) ($location['divisionNumber'] ?? ''),
                 'name' => (string) ($location['name'] ?? 'Unknown store'),
                 'chain' => (string) ($location['chain'] ?? ''),
                 'city' => (string) ($address['city'] ?? ''),
+                'county' => (string) ($address['county'] ?? ''),
                 'state' => (string) ($address['state'] ?? ''),
+                'state_code' => (string) ($address['state'] ?? ''),
                 'zip_code' => (string) ($address['zipCode'] ?? ''),
+                'postal_code' => (string) ($address['zipCode'] ?? ''),
                 'address_line_1' => (string) ($address['addressLine1'] ?? ''),
+                'address_line_2' => (string) ($address['addressLine2'] ?? ''),
+                'phone' => (string) ($location['phone'] ?? ''),
+                'latitude' => isset($geolocation['latitude']) ? (float) $geolocation['latitude'] : null,
+                'longitude' => isset($geolocation['longitude']) ? (float) $geolocation['longitude'] : null,
+                'timezone' => (string) ($hours['timezone'] ?? ''),
+                'hours_json' => json_encode($hours, JSON_UNESCAPED_SLASHES),
+                'raw_json' => json_encode($location, JSON_UNESCAPED_SLASHES),
             ];
         }, $locations);
     }
@@ -298,23 +313,65 @@ class GroceryService {
         $items = $product['items'] ?? [];
         $primaryItem = $items[0] ?? [];
         $price = $primaryItem['price'] ?? [];
+        $nationalPrice = $primaryItem['nationalPrice'] ?? [];
+        $inventory = $primaryItem['inventory'] ?? [];
+        $fulfillment = $primaryItem['fulfillment'] ?? [];
+        $itemInfo = $product['itemInformation'] ?? [];
 
         return [
             'kroger_product_id' => (string) ($product['productId'] ?? ''),
-            'upc' => (string) ($primaryItem['upc'] ?? $product['upc'] ?? ''),
+            'upc' => (string) ($product['upc'] ?? ''),
+            'alias_upcs' => !empty($product['aliasProductIds']) ? implode('|', (array) $product['aliasProductIds']) : null,
+            'gtin14' => null,
             'description' => trim((string) ($product['description'] ?? 'Unnamed product')),
             'brand' => (string) ($product['brand'] ?? ''),
             'size' => (string) ($primaryItem['size'] ?? ''),
             'image_url' => $this->extractImageUrl($product['images'] ?? []),
-            'aisle_locations' => $this->flattenLocationValues($product['aisleLocations'] ?? []),
-            'categories' => implode(', ', $product['categories'] ?? []),
+            'product_page_url' => (string) ($product['productPageURI'] ?? ''),
+            'aisle_locations' => $this->flattenAisleLocations($product['aisleLocations'] ?? []),
+            'categories' => implode(', ', (array) ($product['categories'] ?? [])),
+            'categories_json' => !empty($product['categories']) ? json_encode($product['categories'], JSON_UNESCAPED_SLASHES) : null,
             'country_origin' => (string) ($product['countryOrigin'] ?? ''),
             'temperature' => $this->normalizeTemperature($product['temperature'] ?? null),
             'regular_price' => isset($price['regular']) ? (float) $price['regular'] : null,
             'sale_price' => isset($price['promo']) ? (float) $price['promo'] : null,
+            'national_price' => isset($nationalPrice['regular']) ? (float) $nationalPrice['regular'] : (isset($price['regular']) ? (float) $price['regular'] : null),
             'promo_description' => $this->extractPromoDescription($items),
+            'inventory_level' => (string) ($inventory['stockLevel'] ?? 'UNKNOWN'),
+            'fulfillment_instore' => isset($fulfillment['instore']) ? (int) (bool) $fulfillment['instore'] : 0,
+            'fulfillment_shiptohome' => isset($fulfillment['shiptohome']) ? (int) (bool) $fulfillment['shiptohome'] : 0,
+            'fulfillment_delivery' => isset($fulfillment['delivery']) ? (int) (bool) $fulfillment['delivery'] : 0,
+            'fulfillment_curbside' => isset($fulfillment['curbside']) ? (int) (bool) $fulfillment['curbside'] : 0,
+            'snap_eligible' => isset($product['snapEligible']) ? (int) (bool) $product['snapEligible'] : 0,
+            'restricted_item' => isset($product['retstrictions']) ? (int) (bool) !empty($product['retstrictions']) : 0,
+            'age_restricted' => isset($product['ageRestriction']) ? (int) (bool) $product['ageRestriction'] : 0,
+            'alcoholic' => isset($product['alcohol']) ? (int) (bool) $product['alcohol'] : 0,
+            'alcohol_proof' => isset($product['alcoholProof']) ? (int) $product['alcoholProof'] : null,
+            'nutritional_preferences' => !empty($product['manufacturerDeclarations']) ? implode('|', (array) $product['manufacturerDeclarations']) : null,
+            'package_length' => (string) ($itemInfo['width'] ?? ''),
+            'package_width' => (string) ($itemInfo['depth'] ?? ''),
+            'package_height' => (string) ($itemInfo['height'] ?? ''),
+            'package_weight' => (string) ($itemInfo['netWeight'] ?? $itemInfo['grossWeight'] ?? ''),
+            'receipt_description' => (string) ($product['receiptDescription'] ?? ''),
             'raw_json' => json_encode($product, JSON_UNESCAPED_SLASHES),
         ];
+    }
+
+    private function flattenAisleLocations(array $aisleLocations): string {
+        $locations = [];
+        foreach ($aisleLocations as $aisle) {
+            $parts = [];
+            if (!empty($aisle['description'])) {
+                $parts[] = $aisle['description'];
+            }
+            if (!empty($aisle['shelfNumber'])) {
+                $parts[] = 'Shelf ' . $aisle['shelfNumber'];
+            }
+            if (!empty($parts)) {
+                $locations[] = implode(', ', $parts);
+            }
+        }
+        return implode('; ', $locations);
     }
 
     private function extractImageUrl(array $images): ?string {
@@ -374,44 +431,86 @@ class GroceryService {
     }
 
     private function upsertProduct(array $product): int {
-        $existing = $this->db->prepare("SELECT id FROM products WHERE kroger_product_id = :product_id LIMIT 1");
-        $existing->execute([':product_id' => $product['kroger_product_id']]);
+        $existing = $this->db->prepare("SELECT id FROM products WHERE upc = :upc LIMIT 1");
+        $existing->execute([':upc' => $product['upc']]);
         $row = $existing->fetch();
 
         if ($row) {
             $stmt = $this->db->prepare("
                 UPDATE products
                 SET
-                    upc = :upc,
+                    kroger_product_id = :kroger_product_id,
+                    alias_upcs = :alias_upcs,
+                    gtin14 = :gtin14,
                     description = :description,
                     brand = :brand,
                     size = :size,
                     image_url = :image_url,
+                    product_page_url = :product_page_url,
                     aisle_locations = :aisle_locations,
                     categories = :categories,
+                    categories_json = :categories_json,
                     country_origin = :country_origin,
                     temperature = :temperature,
                     regular_price = :regular_price,
                     sale_price = :sale_price,
+                    national_price = :national_price,
                     promo_description = :promo_description,
+                    inventory_level = :inventory_level,
+                    fulfillment_instore = :fulfillment_instore,
+                    fulfillment_shiptohome = :fulfillment_shiptohome,
+                    fulfillment_delivery = :fulfillment_delivery,
+                    fulfillment_curbside = :fulfillment_curbside,
+                    snap_eligible = :snap_eligible,
+                    restricted_item = :restricted_item,
+                    age_restricted = :age_restricted,
+                    alcoholic = :alcoholic,
+                    alcohol_proof = :alcohol_proof,
+                    nutritional_preferences = :nutritional_preferences,
+                    package_length = :package_length,
+                    package_width = :package_width,
+                    package_height = :package_height,
+                    package_weight = :package_weight,
+                    receipt_description = :receipt_description,
                     raw_json = :raw_json,
                     last_seen_at = CURRENT_TIMESTAMP
                 WHERE id = :id
             ");
             $stmt->execute([
                 ':id' => $row['id'],
-                ':upc' => $product['upc'],
+                ':kroger_product_id' => $product['kroger_product_id'],
+                ':alias_upcs' => $product['alias_upcs'],
+                ':gtin14' => $product['gtin14'],
                 ':description' => $product['description'],
                 ':brand' => $product['brand'],
                 ':size' => $product['size'],
                 ':image_url' => $product['image_url'],
+                ':product_page_url' => $product['product_page_url'],
                 ':aisle_locations' => $product['aisle_locations'],
                 ':categories' => $product['categories'],
+                ':categories_json' => $product['categories_json'],
                 ':country_origin' => $product['country_origin'],
                 ':temperature' => $product['temperature'],
                 ':regular_price' => $product['regular_price'],
                 ':sale_price' => $product['sale_price'],
+                ':national_price' => $product['national_price'],
                 ':promo_description' => $product['promo_description'],
+                ':inventory_level' => $product['inventory_level'],
+                ':fulfillment_instore' => $product['fulfillment_instore'],
+                ':fulfillment_shiptohome' => $product['fulfillment_shiptohome'],
+                ':fulfillment_delivery' => $product['fulfillment_delivery'],
+                ':fulfillment_curbside' => $product['fulfillment_curbside'],
+                ':snap_eligible' => $product['snap_eligible'],
+                ':restricted_item' => $product['restricted_item'],
+                ':age_restricted' => $product['age_restricted'],
+                ':alcoholic' => $product['alcoholic'],
+                ':alcohol_proof' => $product['alcohol_proof'],
+                ':nutritional_preferences' => $product['nutritional_preferences'],
+                ':package_length' => $product['package_length'],
+                ':package_width' => $product['package_width'],
+                ':package_height' => $product['package_height'],
+                ':package_weight' => $product['package_weight'],
+                ':receipt_description' => $product['receipt_description'],
                 ':raw_json' => $product['raw_json'],
             ]);
 
@@ -422,33 +521,75 @@ class GroceryService {
             INSERT INTO products (
                 kroger_product_id,
                 upc,
+                alias_upcs,
+                gtin14,
                 description,
                 brand,
                 size,
                 image_url,
+                product_page_url,
                 aisle_locations,
                 categories,
+                categories_json,
                 country_origin,
                 temperature,
                 regular_price,
                 sale_price,
+                national_price,
                 promo_description,
+                inventory_level,
+                fulfillment_instore,
+                fulfillment_shiptohome,
+                fulfillment_delivery,
+                fulfillment_curbside,
+                snap_eligible,
+                restricted_item,
+                age_restricted,
+                alcoholic,
+                alcohol_proof,
+                nutritional_preferences,
+                package_length,
+                package_width,
+                package_height,
+                package_weight,
+                receipt_description,
                 raw_json,
                 last_seen_at
             ) VALUES (
                 :kroger_product_id,
                 :upc,
+                :alias_upcs,
+                :gtin14,
                 :description,
                 :brand,
                 :size,
                 :image_url,
+                :product_page_url,
                 :aisle_locations,
                 :categories,
+                :categories_json,
                 :country_origin,
                 :temperature,
                 :regular_price,
                 :sale_price,
+                :national_price,
                 :promo_description,
+                :inventory_level,
+                :fulfillment_instore,
+                :fulfillment_shiptohome,
+                :fulfillment_delivery,
+                :fulfillment_curbside,
+                :snap_eligible,
+                :restricted_item,
+                :age_restricted,
+                :alcoholic,
+                :alcohol_proof,
+                :nutritional_preferences,
+                :package_length,
+                :package_width,
+                :package_height,
+                :package_weight,
+                :receipt_description,
                 :raw_json,
                 CURRENT_TIMESTAMP
             )
@@ -456,17 +597,38 @@ class GroceryService {
         $stmt->execute([
             ':kroger_product_id' => $product['kroger_product_id'],
             ':upc' => $product['upc'],
+            ':alias_upcs' => $product['alias_upcs'],
+            ':gtin14' => $product['gtin14'],
             ':description' => $product['description'],
             ':brand' => $product['brand'],
             ':size' => $product['size'],
             ':image_url' => $product['image_url'],
+            ':product_page_url' => $product['product_page_url'],
             ':aisle_locations' => $product['aisle_locations'],
             ':categories' => $product['categories'],
+            ':categories_json' => $product['categories_json'],
             ':country_origin' => $product['country_origin'],
             ':temperature' => $product['temperature'],
             ':regular_price' => $product['regular_price'],
             ':sale_price' => $product['sale_price'],
+            ':national_price' => $product['national_price'],
             ':promo_description' => $product['promo_description'],
+            ':inventory_level' => $product['inventory_level'],
+            ':fulfillment_instore' => $product['fulfillment_instore'],
+            ':fulfillment_shiptohome' => $product['fulfillment_shiptohome'],
+            ':fulfillment_delivery' => $product['fulfillment_delivery'],
+            ':fulfillment_curbside' => $product['fulfillment_curbside'],
+            ':snap_eligible' => $product['snap_eligible'],
+            ':restricted_item' => $product['restricted_item'],
+            ':age_restricted' => $product['age_restricted'],
+            ':alcoholic' => $product['alcoholic'],
+            ':alcohol_proof' => $product['alcohol_proof'],
+            ':nutritional_preferences' => $product['nutritional_preferences'],
+            ':package_length' => $product['package_length'],
+            ':package_width' => $product['package_width'],
+            ':package_height' => $product['package_height'],
+            ':package_weight' => $product['package_weight'],
+            ':receipt_description' => $product['receipt_description'],
             ':raw_json' => $product['raw_json'],
         ]);
 

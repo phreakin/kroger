@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const usualAddButton = document.getElementById('usual-add-btn');
     const usualAddAllButton = document.getElementById('usual-add-all-btn');
     const dealsTable = document.getElementById('deals-table');
+    const departmentSelector = document.getElementById('department-selector');
 
     let appConfig = {
         defaultStoreId: '',
@@ -114,6 +115,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         window.open(url, '_blank', 'noopener,noreferrer');
+    }
+
+    function debounce(fn, delay) {
+        let timeout;
+        return function (...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => fn(...args), delay);
+        };
     }
 
     function getTrendColors(direction) {
@@ -858,6 +867,15 @@ document.addEventListener('DOMContentLoaded', () => {
         button.addEventListener('click', () => openExternal(button.dataset.externalUrl));
     });
 
+    departmentSelector?.addEventListener('change', (event) => {
+        const target = event.target.value;
+        if (target) {
+            const section = document.getElementById(target);
+            section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            event.target.value = '';
+        }
+    });
+
     dropdownContainers.forEach((container) => {
         const trigger = container.querySelector('[data-dropdown-trigger]');
         const menu = container.querySelector('[data-dropdown-menu]');
@@ -938,6 +956,52 @@ document.addEventListener('DOMContentLoaded', () => {
             lookupStores();
         }
     });
+
+    const handleTopSearchInput = debounce(async () => {
+        const term = topSearchInput?.value.trim() || '';
+        const locationId = storeInput?.value.trim() || '';
+
+        if (!term || !locationId) {
+            return;
+        }
+
+        try {
+            const json = await requestJson(`api.php?action=search_products&q=${encodeURIComponent(term)}&locationId=${encodeURIComponent(locationId)}`);
+            renderSearchResults(json.results || []);
+            if (searchState) {
+                searchState.textContent = `Showing ${json.results.length} results as you type.`;
+            }
+        } catch (error) {
+            // Silently fail during live search
+        }
+    }, 500);
+
+    topSearchInput?.addEventListener('input', handleTopSearchInput);
+
+    const handleUsualItemInput = debounce(async () => {
+        const term = usualItemName?.value.trim() || '';
+        if (!term || term.length < 2) {
+            return;
+        }
+
+        const locationId = storeInput?.value.trim() || '';
+        if (!locationId) {
+            return;
+        }
+
+        try {
+            const json = await requestJson(`api.php?action=search_products&q=${encodeURIComponent(term)}&locationId=${encodeURIComponent(locationId)}`);
+            if (json.results && json.results.length > 0) {
+                const firstResult = json.results[0];
+                usualItemName.dataset.productId = firstResult.db_id;
+                usualItemName.placeholder = `${firstResult.description}`;
+            }
+        } catch (error) {
+            // Silently fail during live search
+        }
+    }, 600);
+
+    usualItemName?.addEventListener('input', handleUsualItemInput);
 
     loadPriceHistoryChart();
 });
