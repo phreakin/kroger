@@ -12,6 +12,7 @@
     --accent-dark: #00286f;
     --accent-soft: #dce8ff;
     --highlight: #1f66e5;
+    --gold: var(--highlight);
     --green: #2c7a53;
     --shadow: 0 18px 45px rgba(19, 45, 89, 0.09);
     --shadow-soft: 0 10px 24px rgba(19, 45, 89, 0.06);
@@ -210,7 +211,7 @@ body,
 .storefront-logo {
     width: 122px;
     height: auto;
-    filter: none;
+    filter: brightness(0) saturate(100%) invert(16%) sepia(89%) saturate(3248%) hue-rotate(212deg) brightness(90%) contrast(106%);
     flex: 0 0 auto;
 }
 
