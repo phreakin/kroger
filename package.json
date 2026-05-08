@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "vue": "^3.5.17",
-    "axios": "^1.13.5",
+    "axios": "^1.15.2",
     "alpinejs": "^3.14.8"
   },
   "devDependencies": {
